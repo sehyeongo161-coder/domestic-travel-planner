@@ -34,8 +34,13 @@
 
     <section class="destination-switcher" aria-labelledby="destination-label">
       <div class="switcher-heading">
-        <span id="destination-label">여행지 선택</span>
-        <small>도와 지도에서 골라보세요</small>
+        <div class="switcher-heading-copy">
+          <span id="destination-label">여행지 선택</span>
+          <small>도와 지도에서 골라보세요</small>
+        </div>
+        <button class="switcher-toggle" id="destination-switcher-toggle" type="button" data-action="toggle-destination-switcher" aria-expanded="true" aria-controls="destination-tabs">
+          <span>접기</span><b aria-hidden="true">⌃</b>
+        </button>
       </div>
       <div class="destination-browser" id="destination-tabs" aria-labelledby="destination-label"></div>
     </section>

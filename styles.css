@@ -73,9 +73,17 @@ a { color: var(--orange-dark); text-underline-offset: 3px; }
 .sync-status[data-state="local"]::before { background: #94a3b8; box-shadow: 0 0 0 3px rgba(148,163,184,.12); }
 
 .destination-switcher { position: relative; z-index: 4; margin: -26px 16px 0; padding: 15px 15px 13px; background: rgba(255,255,255,.96); border: 1px solid rgba(255,255,255,.9); border-radius: 22px; box-shadow: 0 12px 30px rgba(51, 65, 85, .09); }
-.switcher-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin-bottom: 11px; padding: 0 2px; }
-.switcher-heading span { font-size: 13px; font-weight: 850; }
-.switcher-heading small { color: #9aa2af; font-size: 10px; }
+.switcher-heading { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 11px; padding: 0 2px; }
+.switcher-heading-copy { min-width: 0; display: grid; gap: 2px; }
+.switcher-heading-copy span { font-size: 13px; font-weight: 850; }
+.switcher-heading-copy small { color: #9aa2af; font-size: 10px; }
+.switcher-toggle { flex: none; min-height: 32px; display: inline-flex; align-items: center; gap: 6px; padding: 6px 10px; color: #6f7887; background: #f4f6f8; border: 1px solid #e8ebef; border-radius: 999px; font-size: 10px; font-weight: 850; }
+.switcher-toggle:hover { color: var(--orange-dark); background: var(--orange-pale); border-color: #fed7aa; }
+.switcher-toggle b { font-size: 12px; line-height: 1; transition: transform .18s ease; }
+.destination-switcher.is-collapsed { padding-bottom: 15px; }
+.destination-switcher.is-collapsed .switcher-heading { margin-bottom: 0; }
+.destination-switcher.is-collapsed .destination-browser { display: none; }
+.destination-switcher.is-collapsed .switcher-toggle b { transform: rotate(180deg); }
 .destination-browser { display: grid; gap: 10px; }
 .selector-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .selector-toolbar > strong { overflow: hidden; color: #6f7887; font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }

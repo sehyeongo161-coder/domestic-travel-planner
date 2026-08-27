@@ -1,6 +1,7 @@
 "use strict";
 
 const STORAGE_KEY = "smallCityTravelPlanner";
+const SWITCHER_COLLAPSED_KEY = "travelPlannerDestinationSwitcherCollapsed";
 const DATA_VERSION = 6;
 const FIREBASE_COLLECTION = "domestic-travel";
 const FIREBASE_DOCUMENT = "planner-state";
@@ -157,6 +158,8 @@ const CANDIDATE_CONFIG = {
 
 const app = document.querySelector("#app");
 const tabs = document.querySelector("#destination-tabs");
+const destinationSwitcher = document.querySelector(".destination-switcher");
+const destinationSwitcherToggle = document.querySelector("#destination-switcher-toggle");
 const importInput = document.querySelector("#import-file");
 const modalBackdrop = document.querySelector("#modal-backdrop");
 const modalForm = document.querySelector("#modal-form");
@@ -179,6 +182,7 @@ let firebaseWriteVersion = 0;
 let pendingFirebaseWrite = false;
 let lastFirebaseSignature = "";
 let state = loadState();
+let destinationSwitcherCollapsed = loadDestinationSwitcherCollapsed();
 let destinationSelectorMode = "map";
 let selectedProvince = state.destinations.find((destination) => destination.id === state.selectedId)?.province || "전북";
 let mapDrilldownProvince = "";
@@ -803,8 +807,25 @@ function renderDestination() {
 
 function renderAll() {
   selectedProvince = currentDestination().province || "기타";
+  renderDestinationSwitcherState();
   renderTabs();
   renderDestination();
+}
+
+function loadDestinationSwitcherCollapsed() {
+  try {
+    return localStorage.getItem(SWITCHER_COLLAPSED_KEY) === "true";
+  } catch {
+    return false;
+  }
+}
+
+function renderDestinationSwitcherState() {
+  if (!destinationSwitcher || !destinationSwitcherToggle) return;
+  destinationSwitcher.classList.toggle("is-collapsed", destinationSwitcherCollapsed);
+  destinationSwitcherToggle.setAttribute("aria-expanded", String(!destinationSwitcherCollapsed));
+  const label = destinationSwitcherToggle.querySelector("span");
+  if (label) label.textContent = destinationSwitcherCollapsed ? "펼치기" : "접기";
 }
 
 function setPath(target, path, value) {
@@ -1367,6 +1388,15 @@ document.addEventListener("click", (event) => {
   const button = event.target.closest("[data-action]");
   if (!button) return;
   const action = button.dataset.action;
+  if (action === "toggle-destination-switcher") {
+    destinationSwitcherCollapsed = !destinationSwitcherCollapsed;
+    try {
+      localStorage.setItem(SWITCHER_COLLAPSED_KEY, String(destinationSwitcherCollapsed));
+    } catch {
+      // 저장이 제한된 브라우저에서도 현재 화면의 접기·펼치기는 계속 동작합니다.
+    }
+    renderDestinationSwitcherState();
+  }
   if (action === "select-destination") {
     const destinationChanged = state.selectedId !== button.dataset.id;
     state.selectedId = button.dataset.id;
