@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#fff7ed">
+  <meta name="description" content="전주 출발 국내 소도시 1박 2일 여행을 여행지별로 관리하는 개인용 플래너">
+  <title>소도시 여행 플래너</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <a class="skip-link" href="#main-content">본문으로 건너뛰기</a>
+
+  <div class="app-shell">
+    <header class="app-header">
+      <div class="header-orb header-orb-one" aria-hidden="true"></div>
+      <div class="header-orb header-orb-two" aria-hidden="true"></div>
+      <div class="header-content">
+        <div class="header-kicker"><span>FROM JEONJU</span><span class="trip-badge">1박 2일</span></div>
+        <div class="header-row">
+          <div>
+            <h1 id="current-trip-name">구례 여행</h1>
+            <p>내 취향대로 채우는 소도시 여행</p>
+            <span class="sync-status" id="sync-status" data-state="connecting" aria-live="polite">Firebase 연결 중</span>
+          </div>
+          <div class="header-actions" aria-label="계획 편집">
+            <button class="header-icon-button" id="undo-btn" type="button" data-action="undo-action" aria-label="마지막 수정 되돌리기" disabled></button>
+            <button class="header-icon-button" id="edit-toggle-btn" type="button" data-action="toggle-edit-mode" aria-label="수정 모드 켜기" aria-pressed="false"></button>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <section class="destination-switcher" aria-labelledby="destination-label">
+      <div class="switcher-heading">
+        <span id="destination-label">여행지 선택</span>
+        <small>도와 지도에서 골라보세요</small>
+      </div>
+      <div class="destination-browser" id="destination-tabs" aria-labelledby="destination-label"></div>
+    </section>
+
+    <main id="main-content" class="app-main" tabindex="-1">
+      <div id="app" aria-live="polite"></div>
+    </main>
+  </div>
+
+  <input id="import-file" type="file" accept="application/json,.json" hidden>
+
+  <div class="modal-backdrop" id="modal-backdrop" hidden>
+    <section class="modal" id="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+      <div class="modal-header">
+        <div>
+          <p class="eyebrow" id="modal-kicker">PLAN DETAILS</p>
+          <h2 id="modal-title">항목 편집</h2>
+        </div>
+        <button class="icon-button" type="button" data-action="close-modal" aria-label="창 닫기">×</button>
+      </div>
+      <form id="modal-form">
+        <div class="modal-body" id="modal-fields"></div>
+        <div class="modal-actions">
+          <button class="button button-secondary" type="button" data-action="close-modal">취소</button>
+          <button class="button button-primary" type="submit">저장</button>
+        </div>
+      </form>
+    </section>
+  </div>
+
+  <div class="toast-region" id="toast-region" aria-live="polite" aria-atomic="true"></div>
+  <script src="assets/maps/map-data.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
