@@ -2,7 +2,8 @@
 
 const STORAGE_KEY = "smallCityTravelPlanner";
 const SWITCHER_COLLAPSED_KEY = "travelPlannerDestinationSwitcherCollapsed";
-const DATA_VERSION = 6;
+const DATA_VERSION = 7;
+const MAX_TRIP_DAYS = 14;
 const FIREBASE_COLLECTION = "domestic-travel";
 const FIREBASE_DOCUMENT = "planner-state";
 const FIREBASE_CONFIG = {
@@ -209,16 +210,24 @@ function inferMunicipality(name = "", province = "기타") {
   return (MUNICIPALITIES[province] || []).find((municipality) => areaBaseName(municipality) === baseName) || "";
 }
 
-function createDefaultDay(dayNumber, destinationName = "") {
-  const source = DESTINATION_SCHEDULES[destinationName]?.[dayNumber - 1] || LEGACY_GENERIC_DAYS[dayNumber - 1];
+function createEmptyDay() {
   return {
     date: "", departureTime: "09:00", weather: "", note: "",
+    items: []
+  };
+}
+
+function createDefaultDay(dayNumber, destinationName = "") {
+  const source = DESTINATION_SCHEDULES[destinationName]?.[dayNumber - 1] || LEGACY_GENERIC_DAYS[dayNumber - 1] || [];
+  return {
+    ...createEmptyDay(),
     items: source.map(([time, place, type, duration, memo = ""]) => ({ ...createScheduleItem(time, place, type, duration), memo }))
   };
 }
 
 function isUntouchedLegacyDay(day, dayNumber) {
   const expectedItems = LEGACY_GENERIC_DAYS[dayNumber - 1];
+  if (!Array.isArray(expectedItems)) return false;
   if (!day || !Array.isArray(day.items) || day.items.length !== expectedItems.length) return false;
   return day.items.every((item, index) => {
     const [time, place, type, duration] = expectedItems[index];
@@ -285,7 +294,8 @@ function normalizeDestination(destination = {}) {
   const ledger = destination.ledger && typeof destination.ledger === "object" ? destination.ledger : {};
   const legacyPlaceView = ["places", "restaurants", "cafes"].includes(destination.activeView) ? destination.activeView : "places";
   const activeView = ["places", "restaurants", "cafes"].includes(destination.activeView) ? "placesHub" : (VIEW_TABS.some(([key]) => key === destination.activeView) ? destination.activeView : "plan");
-  const normalizedDays = [0, 1].map((index) => {
+  const dayCount = Math.min(MAX_TRIP_DAYS, Math.max(1, sourceDays.length || fallback.days.length));
+  const normalizedDays = Array.from({ length: dayCount }, (_, index) => {
     const fallbackDay = createDefaultDay(index + 1, destinationName);
     const source = sourceDays[index] && typeof sourceDays[index] === "object" ? sourceDays[index] : fallbackDay;
     return {
@@ -309,10 +319,10 @@ function normalizeDestination(destination = {}) {
     days: migratedDays,
     candidates: Object.fromEntries(Object.keys(CANDIDATE_CONFIG).map((kind) => [kind, Array.isArray(candidates[kind]) ? candidates[kind].filter((item) => item && typeof item === "object").map((item) => normalizeCandidate(item, kind)) : []])),
     costs: Object.fromEntries(COST_FIELDS.map(([key]) => [key, Math.max(0, Number(costs[key]) || 0)])),
-    ledger: {
-      day1: Array.isArray(ledger.day1) ? ledger.day1.filter((item) => item && typeof item === "object").map(normalizeExpense) : [],
-      day2: Array.isArray(ledger.day2) ? ledger.day2.filter((item) => item && typeof item === "object").map(normalizeExpense) : []
-    },
+    ledger: Object.fromEntries(migratedDays.map((_, index) => {
+      const key = `day${index + 1}`;
+      return [key, Array.isArray(ledger[key]) ? ledger[key].filter((item) => item && typeof item === "object").map(normalizeExpense) : []];
+    })),
     checklist: Array.isArray(destination.checklist) ? destination.checklist.filter((item) => item && typeof item === "object").map((item) => ({ id: typeof item.id === "string" ? item.id : makeId("check"), text: String(item.text || "준비 항목"), checked: Boolean(item.checked) })) : fallback.checklist,
     notes: String(destination.notes || ""),
     activeView,
@@ -538,18 +548,31 @@ function renderMunicipalityMap(province) {
 }
 
 function placeGeographicLabels() {
-  const labelYOffsets = { "경기": 40 };
+  const labelOffsetsByMap = {
+    "대한민국 시·도 지도": { "경기": { y: 65 } },
+    "전북 시·군 지도": {
+      "완주군": { x: 28, y: -22 },
+      "전주시": { x: -18, y: 18 }
+    },
+    "전남 시·군 지도": {
+      "강진군": { x: -6, y: 6 },
+      "장흥군": { x: 20, y: -18 },
+      "담양군": { x: 14 }
+    }
+  };
   tabs.querySelectorAll(".geo-map").forEach((svg) => {
+    const mapLabelOffsets = labelOffsetsByMap[svg.getAttribute("aria-label")] || {};
     svg.querySelectorAll(".geo-map-label").forEach((label) => label.remove());
     svg.querySelectorAll("[data-geo-label]").forEach((shape) => {
       try {
         const box = shape.getBBox();
+        const offset = mapLabelOffsets[shape.dataset.geoLabel] || {};
         const label = document.createElementNS("http://www.w3.org/2000/svg", "text");
         label.classList.add("geo-map-label");
         if (shape.classList.contains("is-muted")) label.classList.add("is-muted");
         if (shape.classList.contains("is-selected")) label.classList.add("is-selected");
-        label.setAttribute("x", String(box.x + box.width / 2));
-        label.setAttribute("y", String(box.y + box.height / 2 + (labelYOffsets[shape.dataset.geoLabel] || 0)));
+        label.setAttribute("x", String(box.x + box.width / 2 + (offset.x || 0)));
+        label.setAttribute("y", String(box.y + box.height / 2 + (offset.y || 0)));
         label.textContent = shape.dataset.geoLabel;
         svg.append(label);
       } catch (error) { console.warn("지도 라벨 배치 실패", error); }
@@ -693,7 +716,7 @@ function renderCandidateSection(kind, destination) {
 function calculateCosts(destination = currentDestination()) {
   const categoryTotal = COST_FIELDS.reduce((sum, [key]) => sum + (Number(destination.costs[key]) || 0), 0);
   const dayTotals = destination.days.map((day) => day.items.reduce((sum, item) => sum + (Number(item.cost) || 0), 0));
-  return { categoryTotal, dayTotals, scheduleTotal: dayTotals[0] + dayTotals[1], perPerson: categoryTotal / Math.max(1, Number(destination.basic.people) || 1) };
+  return { categoryTotal, dayTotals, scheduleTotal: dayTotals.reduce((sum, total) => sum + total, 0), perPerson: categoryTotal / Math.max(1, Number(destination.basic.people) || 1) };
 }
 
 function renderCosts(destination) {
@@ -702,8 +725,7 @@ function renderCosts(destination) {
   const content = `<div class="cost-layout"><div class="cost-inputs">${inputs}</div><aside class="cost-summary" aria-live="polite"><dl>
     <div class="cost-summary-row grand-total"><dt>총 예상 비용</dt><dd id="category-total">${formatWon(summary.categoryTotal)}</dd></div>
     <div class="cost-summary-row"><dt>1인당 예상 비용</dt><dd id="per-person-total">${formatWon(summary.perPerson)}</dd></div>
-    <div class="cost-summary-row"><dt>DAY 1 일정 비용</dt><dd id="day-1-cost">${formatWon(summary.dayTotals[0])}</dd></div>
-    <div class="cost-summary-row"><dt>DAY 2 일정 비용</dt><dd id="day-2-cost">${formatWon(summary.dayTotals[1])}</dd></div>
+    ${summary.dayTotals.map((total, index) => `<div class="cost-summary-row"><dt>DAY ${index + 1} 일정 비용</dt><dd id="day-${index + 1}-cost">${formatWon(total)}</dd></div>`).join("")}
     <div class="cost-summary-row"><dt>전체 일정 비용</dt><dd id="schedule-total">${formatWon(summary.scheduleTotal)}</dd></div>
   </dl></aside></div>`;
   return renderCollapsiblePanel("costs", "예상 비용", "BUDGET", "항목별 예산과 일정에 입력한 비용을 한눈에 확인하세요.", content);
@@ -735,11 +757,11 @@ function renderExpenseCard(item, dayIndex) {
 }
 
 function ledgerDayTotal(destination, dayIndex) {
-  return destination.ledger[`day${dayIndex + 1}`].reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
+  return (destination.ledger[`day${dayIndex + 1}`] || []).reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
 }
 
 function renderLedgerDay(destination, dayIndex) {
-  const items = destination.ledger[`day${dayIndex + 1}`];
+  const items = destination.ledger[`day${dayIndex + 1}`] || [];
   const total = ledgerDayTotal(destination, dayIndex);
   return `<section class="ledger-day" aria-labelledby="ledger-day-${dayIndex + 1}">
     <div class="ledger-day-header"><div><p class="eyebrow">DAY ${dayIndex + 1}</p><h3 id="ledger-day-${dayIndex + 1}">${dayIndex + 1}일차 지출</h3></div><div class="ledger-day-total"><span>${dayIndex + 1}일차에 쓴 금액</span><strong id="ledger-day-total-${dayIndex}">${formatWon(total)}</strong></div></div>
@@ -749,9 +771,8 @@ function renderLedgerDay(destination, dayIndex) {
 }
 
 function renderLedger(destination) {
-  const dayOneTotal = ledgerDayTotal(destination, 0);
-  const dayTwoTotal = ledgerDayTotal(destination, 1);
-  return `<section class="panel ledger-panel" aria-labelledby="ledger-title"><div class="panel-header ledger-overview"><div class="panel-header-copy"><p class="eyebrow">TRAVEL LEDGER</p><h3 id="ledger-title">여행 가계부</h3><p class="panel-description">실제로 쓴 금액을 1일차와 2일차로 나누어 기록하세요.</p></div><div class="ledger-grand-total"><span>총지출</span><strong id="ledger-grand-total">${formatWon(dayOneTotal + dayTwoTotal)}</strong></div></div><div class="panel-body"><div class="ledger-grid">${renderLedgerDay(destination, 0)}${renderLedgerDay(destination, 1)}</div></div></section>`;
+  const grandTotal = destination.days.reduce((sum, _, dayIndex) => sum + ledgerDayTotal(destination, dayIndex), 0);
+  return `<section class="panel ledger-panel" aria-labelledby="ledger-title"><div class="panel-header ledger-overview"><div class="panel-header-copy"><p class="eyebrow">TRAVEL LEDGER</p><h3 id="ledger-title">여행 가계부</h3><p class="panel-description">실제로 쓴 금액을 여행 일차별로 나누어 기록하세요.</p></div><div class="ledger-grand-total"><span>총지출</span><strong id="ledger-grand-total">${formatWon(grandTotal)}</strong></div></div><div class="panel-body"><div class="ledger-grid">${destination.days.map((_, dayIndex) => renderLedgerDay(destination, dayIndex)).join("")}</div></div></section>`;
 }
 
 function renderChecklist(destination) {
@@ -770,7 +791,7 @@ function renderNotes(destination) {
 
 function viewCount(destination, view) {
   if (view === "placesHub") return destination.candidates.places.length + destination.candidates.restaurants.length + destination.candidates.cafes.length;
-  if (view === "ledger") return destination.ledger.day1.length + destination.ledger.day2.length;
+  if (view === "ledger") return destination.days.reduce((sum, _, index) => sum + (destination.ledger[`day${index + 1}`]?.length || 0), 0);
   return null;
 }
 
@@ -783,6 +804,30 @@ function renderViewTabs(destination) {
     const count = viewCount(destination, key);
     return `<button class="view-tab" id="view-tab-${key}" type="button" role="tab" aria-selected="${destination.activeView === key}" aria-controls="active-view-panel" data-action="select-view" data-view="${key}">${iconSvg(icon)}<span>${label}</span>${count !== null ? `<span class="view-count">${count}</span>` : ""}</button>`;
   }).join("")}</nav>`;
+}
+
+function tripDurationLabel(dayCount) {
+  const days = Math.min(MAX_TRIP_DAYS, Math.max(1, Number(dayCount) || 1));
+  return days === 1 ? "당일치기" : `${days - 1}박 ${days}일`;
+}
+
+function tripDurationKicker(dayCount) {
+  const days = Math.min(MAX_TRIP_DAYS, Math.max(1, Number(dayCount) || 1));
+  if (days === 1) return "DAY TRIP";
+  const nights = days - 1;
+  return `${nights} ${nights === 1 ? "NIGHT" : "NIGHTS"} · ${days} DAYS`;
+}
+
+function renderTripDurationEditor(destination) {
+  const dayCount = destination.days.length;
+  return `<section class="trip-duration-editor" aria-label="여행 기간 설정">
+    <div class="trip-duration-copy"><span>여행 기간</span><strong>${tripDurationLabel(dayCount)}</strong><small>당일치기부터 최대 ${MAX_TRIP_DAYS - 1}박 ${MAX_TRIP_DAYS}일까지 설정할 수 있어요.</small></div>
+    <div class="trip-duration-stepper" role="group" aria-label="여행 일수 조절">
+      <button type="button" data-action="change-trip-days" data-delta="-1" aria-label="여행 일수 하루 줄이기" ${dayCount <= 1 ? "disabled" : ""}>−</button>
+      <span><b>${dayCount}</b><small>일</small></span>
+      <button type="button" data-action="change-trip-days" data-delta="1" aria-label="여행 일수 하루 늘리기" ${dayCount >= MAX_TRIP_DAYS ? "disabled" : ""}>+</button>
+    </div>
+  </section>`;
 }
 
 function renderActiveView(destination) {
@@ -798,9 +843,12 @@ function renderDestination() {
   document.title = `${destination.name || "소도시"} 여행 플래너`;
   const headerName = document.querySelector("#current-trip-name");
   if (headerName) headerName.textContent = `${destination.name || "소도시"} 여행`;
+  const tripBadge = document.querySelector(".trip-badge");
+  if (tripBadge) tripBadge.textContent = tripDurationLabel(destination.days.length);
   app.innerHTML = `<div id="destination-content">
-    <section class="destination-heading"><div><p class="eyebrow">1 NIGHT · 2 DAYS</p><h2 id="heading-name">${escapeHtml(destination.name || "이름 없는 여행지")}</h2><p class="heading-copy">전주 출발 · 시간순 여행 목차</p></div>${isEditMode ? `<div class="heading-actions"><button class="button button-secondary" type="button" data-action="rename-destination">이름 변경</button><button class="button button-quiet danger-text" type="button" data-action="delete-destination">삭제</button></div>` : ""}</section>
+    <section class="destination-heading"><div><p class="eyebrow">${tripDurationKicker(destination.days.length)}</p><h2 id="heading-name">${escapeHtml(destination.name || "이름 없는 여행지")}</h2><p class="heading-copy">${escapeHtml(destination.basic.departure || "전주")} 출발 · 시간순 여행 목차</p></div>${isEditMode ? `<div class="heading-actions"><button class="button button-secondary" type="button" data-action="rename-destination">이름 변경</button><button class="button button-quiet danger-text" type="button" data-action="delete-destination">삭제</button></div>` : ""}</section>
     <div class="edit-mode-note ${isEditMode ? "is-active" : ""}"><span aria-hidden="true">${isEditMode ? "✎" : "○"}</span><p><strong>${isEditMode ? "수정 모드가 켜졌습니다." : "보기 모드입니다."}</strong> ${isEditMode ? "입력, 추가, 삭제, 순서 변경을 마친 뒤 수정 완료를 누르세요." : "체크 항목은 바로 사용할 수 있고, 계획을 바꾸려면 수정 모드를 켜세요."}</p></div>
+    ${isEditMode ? renderTripDurationEditor(destination) : ""}
     ${renderViewTabs(destination)}<div class="active-view" id="active-view-panel" role="tabpanel" aria-labelledby="view-tab-${destination.activeView}">${renderActiveView(destination)}</div>
   </div>`;
   updateHeaderControls();
@@ -838,7 +886,8 @@ function setPath(target, path, value) {
 
 function updateCostOutputs() {
   const summary = calculateCosts();
-  const values = { "category-total": summary.categoryTotal, "per-person-total": summary.perPerson, "day-1-cost": summary.dayTotals[0], "day-2-cost": summary.dayTotals[1], "schedule-total": summary.scheduleTotal };
+  const values = { "category-total": summary.categoryTotal, "per-person-total": summary.perPerson, "schedule-total": summary.scheduleTotal };
+  summary.dayTotals.forEach((total, index) => { values[`day-${index + 1}-cost`] = total; });
   Object.entries(values).forEach(([id, value]) => { const element = document.getElementById(id); if (element) element.textContent = formatWon(value); });
 }
 
@@ -892,6 +941,39 @@ function findSchedule(dayIndex, id) {
   const items = currentDestination().days[dayIndex]?.items || [];
   const index = items.findIndex((item) => item.id === id);
   return { items, index, item: items[index] };
+}
+
+function changeTripDays(delta) {
+  const destination = currentDestination();
+  const currentCount = destination.days.length;
+  const nextCount = Math.min(MAX_TRIP_DAYS, Math.max(1, currentCount + delta));
+  if (nextCount === currentCount) return;
+
+  if (nextCount > currentCount) {
+    destination.days.push(createEmptyDay());
+    destination.ledger[`day${nextCount}`] = [];
+    saveState();
+    renderDestination();
+    showToast(`${tripDurationLabel(nextCount)} 일정으로 변경했습니다.`);
+    return;
+  }
+
+  const lastDayIndex = currentCount - 1;
+  const lastDay = destination.days[lastDayIndex];
+  const lastDayExpenses = destination.ledger[`day${currentCount}`] || [];
+  const hasSavedContent = lastDay.items.length > 0 || lastDayExpenses.length > 0 || lastDay.date || lastDay.note || lastDay.weather;
+  const applyDecrease = () => {
+    destination.days.pop();
+    delete destination.ledger[`day${currentCount}`];
+    expandedScheduleIds = new Set([...expandedScheduleIds].filter((key) => !key.startsWith(`${destination.id}:${lastDayIndex}:`)));
+    saveState();
+    renderDestination();
+    showToast(`${tripDurationLabel(nextCount)} 일정으로 변경했습니다.`);
+  };
+
+  if (hasSavedContent) {
+    openConfirm("여행 기간 줄이기", `${currentCount}일차의 일정과 가계부 기록이 함께 삭제됩니다. ${tripDurationLabel(nextCount)}로 변경할까요?`, applyDecrease, "기간 줄이기");
+  } else applyDecrease();
 }
 
 function addScheduleItem(dayIndex, item) {
@@ -1298,14 +1380,13 @@ async function connectFirebase() {
 
 function updateLedgerOutputs() {
   const destination = currentDestination();
-  const dayOneTotal = ledgerDayTotal(destination, 0);
-  const dayTwoTotal = ledgerDayTotal(destination, 1);
+  const dayTotals = destination.days.map((_, dayIndex) => ledgerDayTotal(destination, dayIndex));
   const grandTotal = document.querySelector("#ledger-grand-total");
-  const dayOneOutput = document.querySelector("#ledger-day-total-0");
-  const dayTwoOutput = document.querySelector("#ledger-day-total-1");
-  if (grandTotal) grandTotal.textContent = formatWon(dayOneTotal + dayTwoTotal);
-  if (dayOneOutput) dayOneOutput.textContent = formatWon(dayOneTotal);
-  if (dayTwoOutput) dayTwoOutput.textContent = formatWon(dayTwoTotal);
+  if (grandTotal) grandTotal.textContent = formatWon(dayTotals.reduce((sum, total) => sum + total, 0));
+  dayTotals.forEach((total, dayIndex) => {
+    const output = document.querySelector(`#ledger-day-total-${dayIndex}`);
+    if (output) output.textContent = formatWon(total);
+  });
 }
 
 function handleInlineEditor(target) {
@@ -1351,7 +1432,7 @@ function handleBoundInput(target) {
   }
   if (path === "basic.departure") {
     const copy = document.querySelector(".heading-copy");
-    if (copy) copy.textContent = `${value || "전주"}에서 출발하는 느긋한 1박 2일`;
+    if (copy) copy.textContent = `${value || "전주"} 출발 · 시간순 여행 목차`;
   }
   if (path.startsWith("costs.") || path === "basic.people") updateCostOutputs();
 }
@@ -1466,6 +1547,7 @@ document.addEventListener("click", (event) => {
   }
   if (action === "undo-action") undoAction();
   if (action === "toggle-edit-mode") { isEditMode = !isEditMode; renderDestination(); showToast(isEditMode ? "수정 모드를 시작했습니다." : "수정을 마쳤습니다."); }
+  if (action === "change-trip-days") changeTripDays(Number(button.dataset.delta));
   if (action === "add-destination") addDestination();
   if (action === "rename-destination") renameDestination();
   if (action === "delete-destination") deleteDestination();
