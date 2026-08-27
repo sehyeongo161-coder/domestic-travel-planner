@@ -538,6 +538,7 @@ function renderMunicipalityMap(province) {
 }
 
 function placeGeographicLabels() {
+  const labelYOffsets = { "경기": 40 };
   tabs.querySelectorAll(".geo-map").forEach((svg) => {
     svg.querySelectorAll(".geo-map-label").forEach((label) => label.remove());
     svg.querySelectorAll("[data-geo-label]").forEach((shape) => {
@@ -548,7 +549,7 @@ function placeGeographicLabels() {
         if (shape.classList.contains("is-muted")) label.classList.add("is-muted");
         if (shape.classList.contains("is-selected")) label.classList.add("is-selected");
         label.setAttribute("x", String(box.x + box.width / 2));
-        label.setAttribute("y", String(box.y + box.height / 2));
+        label.setAttribute("y", String(box.y + box.height / 2 + (labelYOffsets[shape.dataset.geoLabel] || 0)));
         label.textContent = shape.dataset.geoLabel;
         svg.append(label);
       } catch (error) { console.warn("지도 라벨 배치 실패", error); }
