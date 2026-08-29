@@ -15,6 +15,11 @@
 <body>
   <a class="skip-link" href="#main-content">본문으로 건너뛰기</a>
 
+  <div class="header-actions" aria-label="계획 편집">
+    <button class="header-icon-button" id="undo-btn" type="button" data-action="undo-action" aria-label="마지막 수정 되돌리기" disabled></button>
+    <button class="header-icon-button" id="edit-toggle-btn" type="button" data-action="toggle-edit-mode" aria-label="수정 모드 켜기" aria-pressed="false"></button>
+  </div>
+
   <div class="app-shell">
     <header class="app-header">
       <div class="header-orb header-orb-one" aria-hidden="true"></div>
@@ -26,10 +31,6 @@
             <h1 id="current-trip-name">구례 여행</h1>
             <p>내 취향대로 채우는 소도시 여행</p>
             <span class="sync-status" id="sync-status" data-state="connecting" aria-live="polite">Firebase 연결 중</span>
-          </div>
-          <div class="header-actions" aria-label="계획 편집">
-            <button class="header-icon-button" id="undo-btn" type="button" data-action="undo-action" aria-label="마지막 수정 되돌리기" disabled></button>
-            <button class="header-icon-button" id="edit-toggle-btn" type="button" data-action="toggle-edit-mode" aria-label="수정 모드 켜기" aria-pressed="false"></button>
           </div>
         </div>
       </div>
