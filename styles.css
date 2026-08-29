@@ -61,7 +61,16 @@ a { color: var(--orange-dark); text-underline-offset: 3px; }
 .header-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-top: 15px; }
 .header-row h1 { margin: 0; font-size: clamp(30px, 9vw, 38px); line-height: 1.12; letter-spacing: -.045em; }
 .header-row p { margin: 9px 0 0; color: #697386; font-size: 13px; font-weight: 650; }
-.header-actions { display: flex; align-items: center; gap: 8px; flex: none; margin-top: 1px; }
+.header-actions {
+  position: fixed;
+  top: calc(env(safe-area-inset-top) + 10px);
+  right: max(16px, calc((100vw - 540px) / 2 + 24px));
+  z-index: 90;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: none;
+}
 .header-icon-button { width: 40px; height: 40px; display: grid; place-items: center; color: #586477; background: rgba(255,255,255,.82); border: 1px solid rgba(255,255,255,.95); border-radius: 50%; box-shadow: var(--shadow-sm); backdrop-filter: blur(8px); transition: color .16s ease, transform .16s ease, opacity .16s ease; }
 .header-icon-button:hover { color: var(--orange); transform: translateY(-1px); }
 .header-icon-button:disabled { opacity: .32; cursor: default; transform: none; }
@@ -358,6 +367,7 @@ textarea.edit-input { resize: vertical; }
   body { padding: 24px 0; }
   .app-shell { min-height: calc(100vh - 48px); border-radius: 30px; overflow: hidden; }
   .app-header { border-radius: 0 0 38px 38px; }
+  .header-actions { top: 34px; }
   .view-tabs { bottom: 24px; border-radius: 24px; box-shadow: 0 -8px 35px rgba(30,41,59,.12), 0 0 0 1px rgba(226,232,240,.7); }
   .modal-backdrop { place-items: center; }
 }
