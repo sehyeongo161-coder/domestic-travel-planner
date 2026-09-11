@@ -109,7 +109,7 @@ const CATEGORY_ICONS = { "이동": "car", "관광": "camera", "식사": "utensil
 const VIEW_TABS = [
   ["plan", "일정", "calendar"], ["placesHub", "장소", "map"], ["extras", "체크", "checklist"], ["ledger", "가계부", "wallet"]
 ];
-const PLACE_TABS = [["places", "관광지", "camera"], ["restaurants", "맛집", "utensils"], ["cafes", "카페", "coffee"]];
+const PLACE_TABS = [["places", "관광지", "camera"], ["restaurants", "맛집", "utensils"], ["cafes", "카페", "coffee"], ["lodgings", "숙소", "bed"]];
 const EXPENSE_CATEGORIES = ["이동", "식사", "카페", "숙박", "관광", "쇼핑", "기타"];
 const COST_FIELDS = [
   ["fuel", "주유비"], ["toll", "톨게이트 비용"], ["lodging", "숙박"], ["food", "식비"],
@@ -675,6 +675,7 @@ function candidateMeta(kind, item) {
 function candidateQuickField(kind) {
   if (kind === "restaurants") return { key: "menu", placeholder: "대표 메뉴 또는 태그" };
   if (kind === "cafes") return { key: "feature", placeholder: "카페 특징 또는 태그" };
+  if (kind === "lodgings") return { key: "price", placeholder: "숙박비 또는 가격대" };
   return { key: "description", placeholder: "장소 특징 또는 태그" };
 }
 
@@ -682,12 +683,14 @@ function renderCandidateCard(kind, item, itemIndex = 0, totalItems = 0) {
   if (isEditMode) {
     const quickField = candidateQuickField(kind);
     const iconName = PLACE_TABS.find(([key]) => key === kind)?.[2] || "pin";
+    const urlField = kind === "lodgings" ? "bookingUrl" : "mapUrl";
+    const urlLabel = kind === "lodgings" ? "예약 URL" : "지도 URL";
     return `<article class="quick-edit-card candidate-quick-edit">
       <div class="quick-icon-static" aria-hidden="true">${iconSvg(iconName)}</div>
       <div class="quick-edit-main">
         <input class="edit-input quick-title" type="text" value="${escapeHtml(item.name || "")}" placeholder="이름" aria-label="장소 이름" data-inline-candidate data-kind="${kind}" data-id="${escapeHtml(item.id)}" data-field="name">
         <input class="edit-input" type="text" value="${escapeHtml(item[quickField.key] || "")}" placeholder="${quickField.placeholder}" aria-label="${quickField.placeholder}" data-inline-candidate data-kind="${kind}" data-id="${escapeHtml(item.id)}" data-field="${quickField.key}">
-        <input class="edit-input" type="url" value="${escapeHtml(item.mapUrl || "")}" placeholder="지도 URL (선택)" aria-label="지도 URL" data-inline-candidate data-kind="${kind}" data-id="${escapeHtml(item.id)}" data-field="mapUrl">
+        <input class="edit-input" type="url" value="${escapeHtml(item[urlField] || "")}" placeholder="${urlLabel} (선택)" aria-label="${urlLabel}" data-inline-candidate data-kind="${kind}" data-id="${escapeHtml(item.id)}" data-field="${urlField}">
         <textarea class="edit-input quick-memo" placeholder="메모 (선택)" aria-label="장소 메모" data-inline-candidate data-kind="${kind}" data-id="${escapeHtml(item.id)}" data-field="memo">${escapeHtml(item.memo || "")}</textarea>
         <div class="quick-edit-actions">
           <button class="mini-icon-button" type="button" data-action="move-candidate" data-kind="${kind}" data-id="${escapeHtml(item.id)}" data-direction="-1" aria-label="위로 이동" ${itemIndex === 0 ? "disabled" : ""}>↑</button>
@@ -790,13 +793,13 @@ function renderNotes(destination) {
 }
 
 function viewCount(destination, view) {
-  if (view === "placesHub") return destination.candidates.places.length + destination.candidates.restaurants.length + destination.candidates.cafes.length;
+  if (view === "placesHub") return PLACE_TABS.reduce((sum, [key]) => sum + destination.candidates[key].length, 0);
   if (view === "ledger") return destination.days.reduce((sum, _, index) => sum + (destination.ledger[`day${index + 1}`]?.length || 0), 0);
   return null;
 }
 
 function renderPlaceHub(destination) {
-  return `<section class="place-hub" aria-labelledby="place-hub-title"><div class="place-hub-heading"><div><p class="eyebrow">SAVED PLACES</p><h3 id="place-hub-title">장소 모음</h3><p>관광지, 맛집, 카페를 한 탭 안에서 나누어 관리하세요.</p></div></div><nav class="place-tabs" role="tablist" aria-label="장소 분류">${PLACE_TABS.map(([key, label, icon]) => `<button class="place-tab" id="place-tab-${key}" type="button" role="tab" aria-selected="${destination.activePlaceView === key}" aria-controls="place-category-panel" data-action="select-place-view" data-place-view="${key}">${iconSvg(icon)}${label}<span class="view-count">${destination.candidates[key].length}</span></button>`).join("")}</nav><div id="place-category-panel" role="tabpanel" aria-labelledby="place-tab-${destination.activePlaceView}">${renderCandidateSection(destination.activePlaceView, destination)}</div></section>`;
+  return `<section class="place-hub" aria-labelledby="place-hub-title"><div class="place-hub-heading"><div><p class="eyebrow">SAVED PLACES</p><h3 id="place-hub-title">장소 모음</h3><p>관광지, 맛집, 카페, 숙소를 한 탭 안에서 나누어 관리하세요.</p></div></div><nav class="place-tabs" role="tablist" aria-label="장소 분류">${PLACE_TABS.map(([key, label, icon]) => `<button class="place-tab" id="place-tab-${key}" type="button" role="tab" aria-selected="${destination.activePlaceView === key}" aria-controls="place-category-panel" data-action="select-place-view" data-place-view="${key}">${iconSvg(icon)}${label}<span class="view-count">${destination.candidates[key].length}</span></button>`).join("")}</nav><div id="place-category-panel" role="tabpanel" aria-labelledby="place-tab-${destination.activePlaceView}">${renderCandidateSection(destination.activePlaceView, destination)}</div></section>`;
 }
 
 function renderViewTabs(destination) {
@@ -1195,7 +1198,8 @@ function addCandidateQuick(kind) {
   const defaults = {
     places: { category: "관광", description: "", duration: "", address: "", mapUrl: "", memo: "" },
     restaurants: { menu: "", priceRange: "", address: "", hours: "", mapUrl: "", memo: "" },
-    cafes: { feature: "", priceRange: "", address: "", mapUrl: "", memo: "" }
+    cafes: { feature: "", priceRange: "", address: "", mapUrl: "", memo: "" },
+    lodgings: { price: "", parking: "확인 필요", checkin: "", checkout: "", address: "", bookingUrl: "", memo: "" }
   };
   currentDestination().candidates[kind].push({ id: makeId(kind), name: "", ...(defaults[kind] || { memo: "" }) });
   saveState(); renderDestination();

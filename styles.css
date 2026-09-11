@@ -257,7 +257,7 @@ textarea.edit-input { resize: vertical; }
 .quick-add-button { width: 100%; margin-top: 12px; color: var(--orange-dark); background: var(--orange-soft); border-color: #fdba74; border-style: dashed; }
 
 .place-hub-heading { padding: 3px 4px 14px; }
-.place-tabs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 7px; margin-bottom: 13px; padding: 5px; background: #e9edf1; border-radius: 15px; }
+.place-tabs { display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px; margin-bottom: 13px; padding: 5px; background: #e9edf1; border-radius: 15px; }
 .place-tab { min-height: 42px; display: flex; align-items: center; justify-content: center; gap: 5px; color: #7e8795; background: transparent; border-radius: 11px; font-size: 11px; font-weight: 850; }
 .place-tab .icon { width: 16px; height: 16px; }
 .place-tab[aria-selected="true"] { color: var(--orange-dark); background: white; box-shadow: 0 4px 12px rgba(30,41,59,.08); }
